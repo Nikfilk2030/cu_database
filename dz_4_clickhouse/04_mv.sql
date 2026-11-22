@@ -38,9 +38,30 @@ FROM takt.hw_mv_events;
 CREATE MATERIALIZED VIEW takt.hw_country_hourly_mv
 TO takt.hw_country_hourly
 AS
+SELECT
+    toStartOfHour(ended_at) AS hour,
+    country,
+    count() AS events,
+    countIf(played_seconds < 20) AS events_under_20,
+    sum(played_seconds) AS total_seconds
+FROM takt.hw_mv_events
+GROUP BY hour, country;
+
 SELECT count() AS stored_rows
 FROM takt.hw_country_hourly;
 
+-- Историю пишем в итоги один раз, до новых вставок
+INSERT INTO takt.hw_country_hourly (hour, country, events, events_under_20, total_seconds)
+SELECT
+    toStartOfHour(ended_at) AS hour,
+    country,
+    count() AS events,
+    countIf(played_seconds < 20) AS events_under_20,
+    sum(played_seconds) AS total_seconds
+FROM takt.hw_mv_events
+GROUP BY hour, country;
+
+-- Сверка после истории
 SELECT
     hour,
     country,
@@ -81,6 +102,22 @@ VALUES
     ('2026-10-27 19:04:00', 'RU', 40),
     ('2026-10-27 19:05:00', 'KZ', 25);
 
+-- Отчёт после А
+SELECT
+    hour,
+    country,
+    sum(events) AS events_total,
+    sum(events_under_20) AS short_count,
+    sum(total_seconds) AS seconds_sum,
+    round(100 * short_count / events_total, 2) AS under_20_percent,
+    round(seconds_sum / events_total, 2) AS avg_seconds
+FROM takt.hw_country_hourly
+WHERE hour >= toDateTime('2026-10-27 19:00:00', 'UTC')
+  AND hour <  toDateTime('2026-10-27 21:00:00', 'UTC')
+GROUP BY hour, country
+ORDER BY hour, country;
+
+-- Сверка после А
 SELECT
     hour,
     country,
@@ -112,6 +149,20 @@ HAVING events_diff != 0
     OR seconds_diff != 0
 ORDER BY hour, country;
 
+-- Историческая группа до Б
+SELECT
+    hour,
+    country,
+    sum(events) AS events_total,
+    sum(events_under_20) AS short_count,
+    sum(total_seconds) AS seconds_sum,
+    round(100 * short_count / events_total, 2) AS under_20_percent,
+    round(seconds_sum / events_total, 2) AS avg_seconds
+FROM takt.hw_country_hourly
+WHERE hour = toDateTime('2026-10-24 12:00:00', 'UTC') AND country = 'RU'
+GROUP BY hour, country
+ORDER BY hour, country;
+
 INSERT INTO takt.hw_mv_events
     (ended_at, country, played_seconds)
 VALUES
@@ -119,6 +170,35 @@ VALUES
     ('2026-10-27 20:00:00', 'RU', 10),
     ('2026-10-24 12:34:00', 'RU', 7);
 
+-- Отчёт и историческая группа после Б
+SELECT
+    hour,
+    country,
+    sum(events) AS events_total,
+    sum(events_under_20) AS short_count,
+    sum(total_seconds) AS seconds_sum,
+    round(100 * short_count / events_total, 2) AS under_20_percent,
+    round(seconds_sum / events_total, 2) AS avg_seconds
+FROM takt.hw_country_hourly
+WHERE hour >= toDateTime('2026-10-27 19:00:00', 'UTC')
+  AND hour <  toDateTime('2026-10-27 21:00:00', 'UTC')
+GROUP BY hour, country
+ORDER BY hour, country;
+
+SELECT
+    hour,
+    country,
+    sum(events) AS events_total,
+    sum(events_under_20) AS short_count,
+    sum(total_seconds) AS seconds_sum,
+    round(100 * short_count / events_total, 2) AS under_20_percent,
+    round(seconds_sum / events_total, 2) AS avg_seconds
+FROM takt.hw_country_hourly
+WHERE hour = toDateTime('2026-10-24 12:00:00', 'UTC') AND country = 'RU'
+GROUP BY hour, country
+ORDER BY hour, country;
+
+-- Сверка после Б
 SELECT
     hour,
     country,

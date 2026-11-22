@@ -1,0 +1,4 @@
+*.csv.gz
+стенд/data/
+стенд/.env
+.DS_Store
